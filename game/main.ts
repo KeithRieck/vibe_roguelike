@@ -27,4 +27,4 @@ export function initPhaserGame(parent: string) {
   return new Phaser.Game(config);
 }
 
-// export default initPhaserGame('');
+window.initPhaserGame = initPhaserGame;
