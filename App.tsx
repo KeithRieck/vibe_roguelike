@@ -1,0 +1,1 @@
+// Removed: React dependency removed.

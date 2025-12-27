@@ -1,0 +1,5 @@
+{
+  "name": "Neon Depths Rogue-like",
+  "description": "A classic grid-based rogue-like game built with Phaser 3, featuring procedural dungeon generation, turn-based combat, and full keyboard/gamepad support.",
+  "requestFramePermissions": []
+}

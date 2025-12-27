@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Depths Rogue-like</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #00ffff;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.15);
+            image-rendering: pixelated;
+        }
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+        }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "phaser": "https://esm.sh/phaser@3.80.0"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div class="flex flex-col items-center">
+        <div class="mb-4 text-center">
+            <h1 class="text-4xl font-bold tracking-widest uppercase mb-1 neon-text">
+                NEON DEPTHS
+            </h1>
+            <p class="text-xs text-cyan-600/80 uppercase">Procedural Rogue-like Experiment</p>
+        </div>
+
+        <div id="game-container" class="border-4 border-cyan-900 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+            <!-- Phaser canvas will be injected here -->
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-center gap-8 text-sm opacity-60">
+            <div class="flex flex-col items-center">
+                <span class="font-bold border border-cyan-800 px-2 py-1 rounded mb-1">WASD / ARROWS</span>
+                <span>MOVE</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span class="font-bold border border-cyan-800 px-2 py-1 rounded mb-1">SPACE</span>
+                <span>WAIT / RESTART</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span class="font-bold border border-cyan-800 px-2 py-1 rounded mb-1">GAMEPAD</span>
+                <span>AUTO-DETECT</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
