@@ -182,20 +182,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleInputX(): number {
-    // Fix: Using the declared 'input' property
     const kb = this.input.keyboard;
     const pad = this.input.gamepad?.getPad(0);
-    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || (pad?.axes[0].value ?? 0) < -0.5) return -1;
-    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || (pad?.axes[0].value ?? 0) > 0.5) return 1;
+    // LEFT is button 2 or button 14
+    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || pad?.buttons[14]?.pressed || pad?.buttons[2]?.pressed) return -1;
+    // RIGHT is button 1 or button 15
+    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || pad?.buttons[15]?.pressed || pad?.buttons[1]?.pressed) return 1;
     return 0;
   }
 
   handleInputY(): number {
-    // Fix: Using the declared 'input' property
     const kb = this.input.keyboard;
     const pad = this.input.gamepad?.getPad(0);
-    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || (pad?.axes[1].value ?? 0) < -0.5) return -1;
-    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || (pad?.axes[1].value ?? 0) > 0.5) return 1;
+    // UP is button 3 or button 12
+    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || pad?.buttons[12]?.pressed || pad?.buttons[3]?.pressed) return -1;
+    // DOWN is button 0 or button 13
+    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || pad?.buttons[13]?.pressed || pad?.buttons[0]?.pressed) return 1;
     return 0;
   }
 

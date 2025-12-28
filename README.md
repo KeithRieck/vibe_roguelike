@@ -3,7 +3,7 @@ Hosted at: https://keithrieck.github.io/vibe_roguelike/index.html
 # Roguelike game
 This was a little experiment with Vibe Coding in [Google AI Studio](https://aistudio.google.com/).  Here's how it went:
 1. First Prompt:
-   * Write a web based rogue-like game in typescript using the Phaser game library.
+   * Write a web based rogue-like game in [Typescript](https://www.typescriptlang.org/) using the [Phaser](https://phaser.io/) game library.
       * This game should work on web browsers and also on tablets.
       * User input should be with keyboard and game controllers.
       * All Typescript code should be under a directory called src. The base directory should contain a package.json file and a tsconfig.json file which targets ES2020. Typescript files should be compiled to ES2020 Javascript in a directory called build.
@@ -11,10 +11,18 @@ This was a little experiment with Vibe Coding in [Google AI Studio](https://aist
       * There should be no React code and no TSX files.
 2. Unfortunately, AI Studio used React anyway, so second prompt was:
    * Remove all TSX files and any dependency on React.
-3. I didn't really see provisions for compiling the Typescript to Javascript, so I added [esBuild](https://esbuild.github.io/) stuff.  Then, I had to tweak the HTML and module stuff a bit.  This took a lot of manual work, although I'll have a good idea of how to fix it all next time.
+3. I didn't really see provisions for compiling the Typescript to Javascript, so I added [esBuild](https://esbuild.github.io/) stuff.  Then, I had to tweak the HTML and module stuff a bit.  This took a lot of manual work, but no actual changes to any Typescript code.
 4. Next Prompts:
    * Add a parent class named Creature which extends from Entity where each Creature has a reference to its Sprite. Make the player Entity and all enemy Entity objects extend from Creature. Add a new class called Monster which extends Creature. Make all enemies be instances of Monster. The Monster class will be used to create different kinds of enemies, each with different behaviors, hit points, and capabilities.
    * Move the types.ts file under the game directory.
+   * Add the following to the end of main.ts:  `window.initPhaserGame = initPhaserGame;`
+5. The [Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API) functions do not seem to work with any gamepad buttons.  More prompts:
+   * Move player based on gamepad buttons but not on gamepad axes.
+   * When using gamepad:
+      * LEFT is button 2 or button 14
+      * RIGHT is button 1 or button 15
+      * UP is button 3 or button 12
+      * DOWN is button 0 or button 13
 
 ## Setup, build, and execution:
 * Initialize this folder by executing:  `npm install`
