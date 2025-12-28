@@ -27,4 +27,5 @@ export function initPhaserGame(parent: string) {
   return new Phaser.Game(config);
 }
 
-window.initPhaserGame = initPhaserGame;
+// Expose to window for global access
+(window as any).initPhaserGame = initPhaserGame;

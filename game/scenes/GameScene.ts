@@ -1,21 +1,26 @@
-
-
 import * as Phaser from 'phaser';
 import { DungeonGenerator } from '../logic/DungeonGenerator';
-import { TileType, TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, Position, Entity } from '../../types';
+import { Creature } from '../logic/Creature';
+import { Monster, MonsterType } from '../logic/Monster';
+import { TileType, TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, Position } from '../types';
 
 export class GameScene extends Phaser.Scene {
+  // Fix: Explicitly declare Phaser systems that are injected at runtime to satisfy TypeScript
+  public add!: Phaser.GameObjects.GameObjectFactory;
+  public make!: Phaser.GameObjects.GameObjectCreator;
+  public cameras!: Phaser.Cameras.Scene2D.CameraManager;
+  public input!: Phaser.Input.InputPlugin;
+  public tweens!: Phaser.Tweens.TweenManager;
+
   private generator: DungeonGenerator;
-  private player: Entity | null = null;
-  private enemies: Entity[] = [];
+  private player: Creature | null = null;
+  private monsters: Monster[] = [];
   private mapSprites: Phaser.GameObjects.Sprite[][] = [];
-  private playerSprite: Phaser.GameObjects.Sprite | null = null;
-  private enemySprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private fovLayer: Phaser.GameObjects.Rectangle[][] = [];
   
   private isPlayerTurn: boolean = true;
   private lastInputTime: number = 0;
-  private moveDelay: number = 150; // ms
+  private moveDelay: number = 150; 
 
   private level: number = 1;
   private uiText: Phaser.GameObjects.Text | null = null;
@@ -27,8 +32,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    // Use the Scene's 'make' property to create graphics objects.
-    // Fix: Removed 'add' property which is not supported in GraphicsCreatorConfig.
+    // Fix: Using the declared 'make' property
     const graphics = this.make.graphics({ x: 0, y: 0 });
 
     // Wall texture
@@ -55,14 +59,14 @@ export class GameScene extends Phaser.Scene {
     graphics.generateTexture('stairs', TILE_SIZE, TILE_SIZE);
     graphics.clear();
 
-    // Player texture (Triangle/Neon)
+    // Player texture
     graphics.fillStyle(0x00ffff);
     graphics.fillTriangle(TILE_SIZE / 2, 4, 4, TILE_SIZE - 4, TILE_SIZE - 4, TILE_SIZE - 4);
     graphics.generateTexture('player', TILE_SIZE, TILE_SIZE);
     graphics.clear();
 
-    // Enemy texture (Diamond/Red)
-    graphics.fillStyle(0xff0055);
+    // Enemy texture
+    graphics.fillStyle(0xffffff); // White base, will be tinted
     graphics.fillRect(8, 8, TILE_SIZE - 16, TILE_SIZE - 16);
     graphics.generateTexture('enemy', TILE_SIZE, TILE_SIZE);
     graphics.clear();
@@ -71,7 +75,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.startLevel();
     
-    // Use the Scene's 'add' property to create UI text.
+    // Fix: Using the declared 'add' property
     this.uiText = this.add.text(20, 20, '', {
       fontSize: '18px',
       color: '#00ffff',
@@ -83,19 +87,20 @@ export class GameScene extends Phaser.Scene {
 
   startLevel() {
     this.gameOver = false;
-    this.enemies = [];
-    this.enemySprites.forEach(s => s.destroy());
-    this.enemySprites.clear();
+    
+    // Cleanup old monsters and their sprites
+    this.monsters.forEach(m => m.destroy());
+    this.monsters = [];
     
     const { spawn, exit } = this.generator.generate();
     
-    // Clear old map
+    // Clear old map sprites
     this.mapSprites.forEach(row => row.forEach(s => s.destroy()));
     this.mapSprites = [];
     this.fovLayer.forEach(row => row.forEach(r => r.destroy()));
     this.fovLayer = [];
 
-    // Draw map using the Scene's 'add' property for sprites and rectangles.
+    // Draw map
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.mapSprites[y] = [];
       this.fovLayer[y] = [];
@@ -104,69 +109,55 @@ export class GameScene extends Phaser.Scene {
         if (this.generator.tiles[y][x] === TileType.FLOOR) tex = 'floor';
         if (this.generator.tiles[y][x] === TileType.STAIRS) tex = 'stairs';
         
+        // Fix: Using the declared 'add' property
         const sprite = this.add.sprite(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, tex);
         this.mapSprites[y][x] = sprite;
 
-        // Dark fog for FOV
+        // Fix: Using the declared 'add' property
         const fov = this.add.rectangle(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, TILE_SIZE, TILE_SIZE, 0x000000, 0.8);
         fov.setDepth(10);
         this.fovLayer[y][x] = fov;
       }
     }
 
-    // Player
+    // Player instantiation
     if (!this.player) {
-      this.player = {
-        id: 'player',
-        type: 'player',
-        pos: spawn,
-        hp: 100,
-        maxHp: 100,
-        damage: 20
-      };
+      this.player = new Creature(this, 'player', 'player', spawn, 100, 20, 'player');
+      this.player.sprite.setDepth(20);
     } else {
-      this.player.pos = spawn;
+      this.player.moveTo(spawn.x, spawn.y);
+      this.player.hp = Math.min(this.player.hp + 20, this.player.maxHp); // Small heal on level up
     }
 
-    if (!this.playerSprite) {
-      this.playerSprite = this.add.sprite(spawn.x * TILE_SIZE + TILE_SIZE/2, spawn.y * TILE_SIZE + TILE_SIZE/2, 'player');
-      this.playerSprite.setDepth(5);
-    } else {
-      this.playerSprite.setPosition(spawn.x * TILE_SIZE + TILE_SIZE/2, spawn.y * TILE_SIZE + TILE_SIZE/2);
-    }
-
-    // Spawn Enemies
+    // Spawn Monsters
+    const monsterTypes = [MonsterType.STALKER, MonsterType.WANDERER, MonsterType.SENTINEL];
     for (let i = 0; i < 5 + this.level; i++) {
       const ex = Math.floor(Math.random() * MAP_WIDTH);
       const ey = Math.floor(Math.random() * MAP_HEIGHT);
-      if (this.generator.tiles[ey][ex] === TileType.FLOOR && (Math.abs(ex - spawn.x) > 5 || Math.abs(ey - spawn.y) > 5)) {
-        const id = `enemy_${i}`;
-        const enemy: Entity = {
-          id,
-          type: 'enemy',
-          pos: { x: ex, y: ey },
-          hp: 30 + this.level * 5,
-          maxHp: 30 + this.level * 5,
-          damage: 5 + this.level
-        };
-        this.enemies.push(enemy);
-        const s = this.add.sprite(ex * TILE_SIZE + TILE_SIZE/2, ey * TILE_SIZE + TILE_SIZE/2, 'enemy');
-        s.setDepth(4);
-        this.enemySprites.set(id, s);
+      
+      if (this.generator.tiles[ey][ex] === TileType.FLOOR && 
+          Phaser.Math.Distance.Between(ex, ey, spawn.x, spawn.y) > 6) {
+        
+        const type = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+        const monster = new Monster(this, `mob_${i}_${this.level}`, { x: ex, y: ey }, this.level, type);
+        monster.sprite.setDepth(15);
+        this.monsters.push(monster);
       }
     }
 
     this.updateFOV();
-    // Use the Scene's 'cameras' property for camera controls.
-    this.cameras.main.startFollow(this.playerSprite, true, 0.1, 0.1);
+    // Fix: Using the declared 'cameras' property
+    this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1);
   }
 
   update(time: number) {
     if (this.gameOver) {
-      // Use the Scene's 'input' property for keyboard handling.
+      // Fix: Using the declared 'input' property
       if (this.input.keyboard?.addKey('SPACE').isDown) {
         this.level = 1;
-        this.player!.hp = this.player!.maxHp;
+        if (this.player) {
+          this.player.hp = this.player.maxHp;
+        }
         this.startLevel();
         this.updateUI();
       }
@@ -176,6 +167,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isPlayerTurn && time > this.lastInputTime + this.moveDelay) {
       const dx = this.handleInputX();
       const dy = this.handleInputY();
+      // Fix: Using the declared 'input' property
       const wait = this.input.keyboard?.addKey('SPACE').isDown;
 
       if (dx !== 0 || dy !== 0 || wait) {
@@ -190,20 +182,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleInputX(): number {
+    // Fix: Using the declared 'input' property
     const kb = this.input.keyboard;
     const pad = this.input.gamepad?.getPad(0);
-
-    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || (pad?.axes[0].value ?? 0) < -0.5 || (pad?.buttons[14]?.pressed)) return -1;
-    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || (pad?.axes[0].value ?? 0) > 0.5 || (pad?.buttons[15]?.pressed)) return 1;
+    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || (pad?.axes[0].value ?? 0) < -0.5) return -1;
+    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || (pad?.axes[0].value ?? 0) > 0.5) return 1;
     return 0;
   }
 
   handleInputY(): number {
+    // Fix: Using the declared 'input' property
     const kb = this.input.keyboard;
     const pad = this.input.gamepad?.getPad(0);
-
-    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || (pad?.axes[1].value ?? 0) < -0.5 || (pad?.buttons[12]?.pressed)) return -1;
-    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || (pad?.axes[1].value ?? 0) > 0.5 || (pad?.buttons[13]?.pressed)) return 1;
+    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || (pad?.axes[1].value ?? 0) < -0.5) return -1;
+    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || (pad?.axes[1].value ?? 0) > 0.5) return 1;
     return 0;
   }
 
@@ -213,70 +205,59 @@ export class GameScene extends Phaser.Scene {
     const ny = this.player.pos.y + dy;
 
     if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return;
-
-    // Check for wall
     if (this.generator.tiles[ny][nx] === TileType.WALL) return;
 
-    // Check for enemy
-    const enemy = this.enemies.find(e => e.pos.x === nx && e.pos.y === ny);
-    if (enemy) {
-      this.attack(this.player, enemy);
+    // Check for combat
+    const target = this.monsters.find(m => m.pos.x === nx && m.pos.y === ny);
+    if (target) {
+      this.resolveCombat(this.player, target);
       return;
     }
 
-    // Move
-    this.player.pos.x = nx;
-    this.player.pos.y = ny;
-    this.playerSprite?.setPosition(nx * TILE_SIZE + TILE_SIZE/2, ny * TILE_SIZE + TILE_SIZE/2);
+    this.player.moveTo(nx, ny);
 
-    // Check for stairs
+    // Stairs logic
     if (this.generator.tiles[ny][nx] === TileType.STAIRS) {
       this.level++;
       this.startLevel();
-      this.updateUI();
     }
   }
 
-  attack(attacker: Entity, target: Entity) {
-    target.hp -= attacker.damage;
+  resolveCombat(attacker: Creature, defender: Creature) {
+    const isDead = defender.takeDamage(attacker.damage);
     
-    // Simple visual feedback using the Scene's 'tweens' property.
-    const sprite = target.type === 'player' ? this.playerSprite : this.enemySprites.get(target.id);
-    if (sprite) {
-      this.tweens.add({
-        targets: sprite,
-        alpha: 0.5,
-        duration: 50,
-        yoyo: true
-      });
-    }
+    // Feedback
+    // Fix: Using the declared 'tweens' property
+    this.tweens.add({
+      targets: defender.sprite,
+      alpha: 0.3,
+      duration: 50,
+      yoyo: true
+    });
 
-    if (target.hp <= 0) {
-      if (target.type === 'enemy') {
-        this.enemies = this.enemies.filter(e => e.id !== target.id);
-        const s = this.enemySprites.get(target.id);
-        s?.destroy();
-        this.enemySprites.delete(target.id);
+    if (isDead) {
+      if (defender.type === 'enemy') {
+        this.monsters = this.monsters.filter(m => m !== defender);
+        defender.destroy();
       } else {
         this.gameOver = true;
-        this.updateUI();
       }
     }
   }
 
   onTurnEnd() {
-    // Enemy turn logic
-    this.enemies.forEach(enemy => {
-      const dist = Phaser.Math.Distance.Between(enemy.pos.x, enemy.pos.y, this.player!.pos.x, this.player!.pos.y);
-      if (dist < 6) {
-        const dx = Math.sign(this.player!.pos.x - enemy.pos.x);
-        const dy = Math.sign(this.player!.pos.y - enemy.pos.y);
-        
-        // Try move X then Y
-        if (dx !== 0 && this.canEnemyMoveTo(enemy.pos.x + dx, enemy.pos.y)) {
-          this.moveEnemy(enemy, dx, 0);
-        } else if (dy !== 0 && this.canEnemyMoveTo(enemy.pos.x, enemy.pos.y + dy)) {
-          this.moveEnemy(enemy, 0, dy);
+    if (!this.player) return;
+
+    // Process all monsters AI
+    this.monsters.forEach(m => {
+      const move = m.updateAI(this.player!.pos, this.generator.tiles, this.monsters);
+      
+      if (move) {
+        // Check if monster hits player
+        if (move.x === this.player!.pos.x && move.y === this.player!.pos.y) {
+          this.resolveCombat(m, this.player!);
+        } else {
+          m.moveTo(move.x, move.y);
         }
       }
     });
@@ -286,33 +267,12 @@ export class GameScene extends Phaser.Scene {
     this.isPlayerTurn = true;
   }
 
-  canEnemyMoveTo(nx: number, ny: number): boolean {
-    if (this.generator.tiles[ny][nx] === TileType.WALL) return false;
-    if (this.player!.pos.x === nx && this.player!.pos.y === ny) return true; // Can attack
-    if (this.enemies.some(e => e.pos.x === nx && e.pos.y === ny)) return false;
-    return true;
-  }
-
-  moveEnemy(enemy: Entity, dx: number, dy: number) {
-    const nx = enemy.pos.x + dx;
-    const ny = enemy.pos.y + dy;
-
-    if (this.player!.pos.x === nx && this.player!.pos.y === ny) {
-      this.attack(enemy, this.player!);
-      return;
-    }
-
-    enemy.pos.x = nx;
-    enemy.pos.y = ny;
-    const s = this.enemySprites.get(enemy.id);
-    s?.setPosition(nx * TILE_SIZE + TILE_SIZE/2, ny * TILE_SIZE + TILE_SIZE/2);
-  }
-
   updateFOV() {
+    if (!this.player) return;
     const radius = 6;
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        const dist = Phaser.Math.Distance.Between(x, y, this.player!.pos.x, this.player!.pos.y);
+        const dist = Phaser.Math.Distance.Between(x, y, this.player.pos.x, this.player.pos.y);
         const fov = this.fovLayer[y][x];
         const sprite = this.mapSprites[y][x];
         
@@ -320,27 +280,26 @@ export class GameScene extends Phaser.Scene {
           fov.setAlpha(0);
           sprite.setAlpha(1);
         } else {
-          fov.setAlpha(0.7);
-          sprite.setAlpha(0.3);
+          fov.setAlpha(0.75);
+          sprite.setAlpha(0.25);
         }
-        
-        // Hide enemies outside FOV
-        this.enemies.forEach(e => {
-          const s = this.enemySprites.get(e.id);
-          const eDist = Phaser.Math.Distance.Between(e.pos.x, e.pos.y, this.player!.pos.x, this.player!.pos.y);
-          s?.setVisible(eDist < radius);
-        });
       }
     }
+
+    // Toggle monster visibility
+    this.monsters.forEach(m => {
+      const dist = Phaser.Math.Distance.Between(m.pos.x, m.pos.y, this.player!.pos.x, this.player!.pos.y);
+      m.sprite.setVisible(dist < radius);
+    });
   }
 
   updateUI() {
     if (!this.player) return;
     if (this.gameOver) {
-      this.uiText?.setText(`[ SYSTEM FAILURE ]\nDEPTH: ${this.level}\nPRESS SPACE TO REBOOT`);
-      this.uiText?.setColor('#ff0055');
+      this.uiText?.setText(`[ PROTOCOL TERMINATED ]\nDEPTH REACHED: ${this.level}\nSPACE: REBOOT`);
+      this.uiText?.setColor('#ff3300');
     } else {
-      this.uiText?.setText(`HP: ${this.player.hp}/${this.player.maxHp}\nLVL: ${this.level}\nENEMIES: ${this.enemies.length}`);
+      this.uiText?.setText(`HP: ${this.player.hp}/${this.player.maxHp}\nDEPTH: ${this.level}\nHOSTILES: ${this.monsters.length}`);
       this.uiText?.setColor('#00ffff');
     }
   }

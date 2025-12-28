@@ -1,5 +1,5 @@
 
-import { TileType, Position, MAP_WIDTH, MAP_HEIGHT } from '../../types';
+import { TileType, Position, MAP_WIDTH, MAP_HEIGHT } from '../types';
 
 export class DungeonGenerator {
   public tiles: TileType[][] = [];
