@@ -26,6 +26,10 @@ export class GameScene extends Phaser.Scene {
   private uiText: Phaser.GameObjects.Text | null = null;
   private gameOver: boolean = false;
 
+  // Gamepad cycling state
+  private activeGamepadIndex: number = 0;
+  private tabKey!: Phaser.Input.Keyboard.Key;
+
   constructor() {
     super('GameScene');
     this.generator = new DungeonGenerator();
@@ -81,6 +85,13 @@ export class GameScene extends Phaser.Scene {
       color: '#00ffff',
       fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(100);
+
+    // Setup Tab key for controller cycling
+    if (this.input.keyboard) {
+      this.tabKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
+      // Prevent browser from tab-navigating out of the game
+      this.input.keyboard.addCapture(Phaser.Input.Keyboard.KeyCodes.TAB);
+    }
 
     this.updateUI();
   }
@@ -151,6 +162,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number) {
+    // Handle Gamepad Cycling
+    if (Phaser.Input.Keyboard.JustDown(this.tabKey)) {
+      const connectedPads = this.input.gamepad?.gamepads.filter(p => p !== null) || [];
+      if (connectedPads.length > 0) {
+        this.activeGamepadIndex = (this.activeGamepadIndex + 1) % connectedPads.length;
+        this.updateUI();
+        
+        // Visual feedback for switch
+        this.tweens.add({
+          targets: this.uiText,
+          scale: 1.1,
+          duration: 100,
+          yoyo: true
+        });
+      }
+    }
+
     if (this.gameOver) {
       // Fix: Using the declared 'input' property
       if (this.input.keyboard?.addKey('SPACE').isDown) {
@@ -181,23 +209,36 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private getActivePad(): Phaser.Input.Gamepad.Gamepad | null {
+    if (!this.input.gamepad) return null;
+    const connectedPads = this.input.gamepad.gamepads.filter(p => p !== null);
+    if (connectedPads.length === 0) return null;
+    return connectedPads[this.activeGamepadIndex % connectedPads.length];
+  }
+
+  private isButtonPressed(pad: Phaser.Input.Gamepad.Gamepad | null, index: number): boolean {
+    if (!pad || !pad.buttons[index]) return false;
+    const button = pad.buttons[index];
+    return button.pressed || button.value > 0.1;
+  }
+
   handleInputX(): number {
     const kb = this.input.keyboard;
-    const pad = this.input.gamepad?.getPad(0);
+    const pad = this.getActivePad();
     // LEFT is button 2 or button 14
-    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || pad?.buttons[14]?.pressed || pad?.buttons[2]?.pressed) return -1;
+    if (kb?.addKey('A').isDown || kb?.addKey('LEFT').isDown || this.isButtonPressed(pad, 14) || this.isButtonPressed(pad, 4)) return -1;
     // RIGHT is button 1 or button 15
-    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || pad?.buttons[15]?.pressed || pad?.buttons[1]?.pressed) return 1;
+    if (kb?.addKey('D').isDown || kb?.addKey('RIGHT').isDown || this.isButtonPressed(pad, 15) || this.isButtonPressed(pad, 0)) return 1;
     return 0;
   }
 
   handleInputY(): number {
     const kb = this.input.keyboard;
-    const pad = this.input.gamepad?.getPad(0);
+    const pad = this.getActivePad();
     // UP is button 3 or button 12
-    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || pad?.buttons[12]?.pressed || pad?.buttons[3]?.pressed) return -1;
+    if (kb?.addKey('W').isDown || kb?.addKey('UP').isDown || this.isButtonPressed(pad, 12) || this.isButtonPressed(pad, 3)) return -1;
     // DOWN is button 0 or button 13
-    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || pad?.buttons[13]?.pressed || pad?.buttons[0]?.pressed) return 1;
+    if (kb?.addKey('S').isDown || kb?.addKey('DOWN').isDown || this.isButtonPressed(pad, 13) || this.isButtonPressed(pad, 1)) return 1;
     return 0;
   }
 
@@ -301,7 +342,12 @@ export class GameScene extends Phaser.Scene {
       this.uiText?.setText(`[ PROTOCOL TERMINATED ]\nDEPTH REACHED: ${this.level}\nSPACE: REBOOT`);
       this.uiText?.setColor('#ff3300');
     } else {
-      this.uiText?.setText(`HP: ${this.player.hp}/${this.player.maxHp}\nDEPTH: ${this.level}\nHOSTILES: ${this.monsters.length}`);
+      const connectedPads = this.input.gamepad?.gamepads.filter(p => p !== null) || [];
+      const padInfo = connectedPads.length > 0 
+        ? `\nCONTROLLER: #${this.activeGamepadIndex + 1} (${connectedPads[this.activeGamepadIndex % connectedPads.length]?.id.slice(0, 10)}...)` 
+        : '';
+      
+      this.uiText?.setText(`HP: ${this.player.hp}/${this.player.maxHp}\nDEPTH: ${this.level}\nHOSTILES: ${this.monsters.length}${padInfo}`);
       this.uiText?.setColor('#00ffff');
     }
   }

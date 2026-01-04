@@ -23,6 +23,8 @@ This was a little experiment with Vibe Coding in [Google AI Studio](https://aist
       * RIGHT is button 1 or button 15
       * UP is button 3 or button 12
       * DOWN is button 0 or button 13
+6. I next realize that the game is confused if there are multiple gamepads attached.  The next prompt is:
+   * The tab key on the keyboard should switch to the next game controller, and then eventually back to the first game controller. If there are zero game pads attached, the tab key will not do anything.
 
 ## Setup, build, and execution:
 * Initialize this folder by executing:  `npm install`
